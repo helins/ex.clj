@@ -84,11 +84,14 @@
 
 (s/def ::element
 
-  (s/keys :req-un [::class
-                   ::method
-                   ::native?]
-          :opt-un [::file
-                   ::line]))
+  (s/and (s/keys :req-un [::class
+                          ::method
+                          ::native?]
+                  :opt-un [::file
+                           ::line])
+         #(not (and (:native? %)
+                    (contains? %
+                               :line)))))
 
 
 (s/def ::stack-trace

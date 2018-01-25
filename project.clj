@@ -1,5 +1,5 @@
 (defproject dvlopt/ex
-            "0.0.0"
+            "0.0.1"
 
   :description "Java exceptions as clojure data"
   :url         "https://github.com/dvlopt/ex"
