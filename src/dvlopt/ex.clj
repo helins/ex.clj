@@ -5,7 +5,8 @@
   {:author "Adam Helinski"}
 
   (:require [clojure.spec.alpha     :as s]
-            [clojure.spec.gen.alpha :as gen]))
+            [clojure.spec.gen.alpha :as gen]
+            [dvlopt.void            :as void]))
 
 
 
@@ -37,7 +38,7 @@
 
 
 
-;;;;;;;;;;
+;;;;;;;;;; Specs
 
 
 (s/def ::string
@@ -48,12 +49,12 @@
 
 (s/def ::kind
 
-  keyword?)
+  simple-keyword?)
 
 
 (s/def ::message
 
-  (s/nilable ::string))
+  ::string)
 
 
 (s/def ::class
@@ -79,19 +80,19 @@
 (s/def ::line
 
   (s/int-in 0
-            64001))
+            Long/MAX_VALUE))
 
 
 (s/def ::element
 
-  (s/and (s/keys :req-un [::class
-                          ::method
-                          ::native?]
-                  :opt-un [::file
-                           ::line])
-         #(not (and (:native? %)
+  (s/and (s/keys :req [::class
+                       ::method
+                       ::native?]
+                 :opt [::file
+                       ::line])
+         #(not (and (::native? %)
                     (contains? %
-                               :line)))))
+                               ::line)))))
 
 
 (s/def ::stack-trace
@@ -104,27 +105,36 @@
   map?)
 
 
+(s/def ::exceptions
+
+  (s/coll-of ::exception))
+
+
 (s/def ::exception
 
-  (s/keys :req-un [::kind
-                   ::message
-                   ::stack-trace]
-          :opt-un [::data
-                   ::via]))
+  (s/keys :req [::kind
+                ::stack-trace]
+          :opt [::message
+                ::data]))
+
+
+
+
+;;;;;;;;;; Specs - Java objects
 
 
 (s/def ::Throwable
 
   (s/with-gen exception?
-              (fn make-gen []
-                (gen/fmap (fn make-exception [[^String msg data cause]]
+              (fn gen []
+                (gen/fmap (fn exception [[^String msg data cause]]
                             (if data
                               (ex-info msg
                                        data
                                        cause)
                               (Exception. msg
                                           cause)))
-                          (s/gen (s/tuple ::string
+                          (s/gen (s/tuple string?
                                           (s/nilable ::data)
                                           (s/nilable ::Throwable)))))))
 
@@ -134,8 +144,8 @@
   (s/with-gen (fn stack-trace? [x]
                 (instance? -class--stack-trace
                            x))
-              (fn make-gen []
-                (gen/fmap (fn make-st [^Exception e]
+              (fn gen []
+                (gen/fmap (fn st [^Exception e]
                             (.getStackTrace e))
                           (s/gen ::Throwable)))))
 
@@ -145,8 +155,8 @@
   (s/with-gen (fn stack-trace-element? [x]
                 (instance? StackTraceElement
                            x))
-              (fn make-gen []
-                (gen/fmap (fn make-ste [st]
+              (fn gen []
+                (gen/fmap (fn ste [st]
                             (aget ^{:tag "[Ljava.lang.StackTraceElement;"} st
                                   (rand-int (count st))))
                           (s/gen ::StackTrace)))))
@@ -154,7 +164,7 @@
 
 
 
-;;;;;;;;;;
+;;;;;;;;;; API
 
 
 (s/fdef kind
@@ -178,7 +188,7 @@
 (s/fdef message
 
   :args (s/cat :e ::Throwable)
-  :ret  ::message)
+  :ret  (s/nilable ::message))
 
 
 (defn message
@@ -189,7 +199,7 @@
 
   [^Throwable e]
 
-  (.getMessage e))
+  (not-empty (.getMessage e)))
 
 
 
@@ -208,21 +218,13 @@
   
   [^StackTraceElement ste]
 
-  (let [native? (.isNativeMethod ste)
-        ste'    {:class   (.getClassName  ste)
-                 :method  (.getMethodName ste)
-                 :native? native?}
-        ste'2   (if-let [file (.getFileName ste)]
-                  (assoc ste'
-                         :file
-                         file)
-                  ste')
-        ste'3   (if native?
-                  ste'2
-                  (assoc ste'2
-                         :line
-                         (.getLineNumber ste)))]
-    ste'3))
+  (let [native? (.isNativeMethod ste)]
+    (void/assoc-some {::class   (.getClassName  ste)
+                      ::method  (.getMethodName ste)
+                      ::native? native?}
+                     ::file (.getFileName ste)
+                     ::line (when-not native?
+                              (.getLineNumber ste)))))
 
 
 
@@ -246,50 +248,6 @@
 
 
 
-(s/fdef -exception
-
-  :args (s/cat :e ::Throwable)
-  :ret  ::exception)
-
-
-(defn- -exception
-
-  "Describes an exception without diving into its causes."
-
-  [^Throwable e]
-
-  (let [e' {:kind        (kind        e)
-            :message     (message     e)
-            :stack-trace (stack-trace e)}]
-    (if-let [data (ex-data e)]
-      (assoc e'
-             :data
-             data)
-      e')))
-
-
-
-
-(s/fdef causes
-
-  :args (s/cat :e ::Throwable)
-  :ret  (s/coll-of ::exception))
-
-
-(defn causes
-
-  "Lazily describes the causes of an exception starting with the most direct one."
-
-  [^Throwable e]
-
-  (lazy-seq
-    (when-let [cause (.getCause e)]
-      (cons (-exception cause)
-            (causes cause)))))
-
-
-
-
 (s/fdef exception
 
   :args (s/cat :e ::Throwable)
@@ -298,13 +256,31 @@
 
 (defn exception
 
-  "Describes an exception."
+  "Describes an exception without any of its causes."
 
   [^Throwable e]
 
-  (let [e' (-exception e)]
-    (if (.getCause e)
-      (assoc (-exception e)
-             :via
-             (causes e))
-      e')))
+  (void/assoc-some {::kind        (kind e)
+                    ::stack-trace (stack-trace e)}
+                   ::message     (message e)
+                   ::data        (ex-data e)))
+
+
+
+
+(s/fdef exception-and-causes
+
+  :args (s/cat :e (s/nilable ::Throwable))
+  :ret  ::exceptions)
+
+
+(defn exception-and-causes
+
+  "Lazily describes an exception and its causes, starting with the most recent one in the call stack."
+
+  [^Throwable e]
+
+  (lazy-seq
+    (when e
+      (cons (exception e)
+            (exception-and-causes (.getCause e))))))
