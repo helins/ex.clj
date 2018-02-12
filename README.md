@@ -10,7 +10,7 @@ use cases such as logging or sharing exceptions over the network.
 
 Read the [API](https://dvlopt.github.io/doc/ex/).
 
-All functions are fully spec'ed and checked with clojure.spec.
+All functions are fully specified and checked with clojure.spec.
 
 In short :
 
@@ -18,9 +18,16 @@ In short :
 (require '[dvlopt.ex :as ex])
 
 
-(ex/exception (Exception. "Something bad happened"
-                          (ex-info "Takes into account ExceptionInfo's"
-                                   {:some :data})))
+;; An exception with a cause, the kind of thing you can catch
+
+(def example-exception
+     (Exception. "Something bad happened"
+                 (ex-info "Takes into account clojure's ExceptionInfo"
+                          {:some :data})))
+
+
+;; Now, let us translate this exception into pure data
+(ex/exception example-exception)
 ```
 
 ## License
