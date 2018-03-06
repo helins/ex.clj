@@ -8,7 +8,7 @@ use cases such as logging or sharing exceptions over the network.
 
 ## Usage
 
-Read the [API](https://dvlopt.github.io/doc/ex/).
+Read the [API](https://dvlopt.github.io/doc/dvlopt/ex/).
 
 All functions are fully specified and checked with clojure.spec.
 
