@@ -1,4 +1,4 @@
-# Ex
+# ex
 
 [![Clojars
 Project](https://img.shields.io/clojars/v/dvlopt/ex.svg)](https://clojars.org/dvlopt/ex)
@@ -8,7 +8,7 @@ use cases such as logging or sharing exceptions over the network.
 
 ## Usage
 
-Read the [API](https://dvlopt.github.io/doc/dvlopt/ex/).
+Read the [API](https://dvlopt.github.io/doc/clojure/dvlopt/ex/index.html).
 
 All functions are fully specified and checked with clojure.spec.
 
